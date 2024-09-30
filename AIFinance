@@ -1,0 +1,38 @@
+import yfinance as yf
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+# 주식 데이터 다운로드
+stocks = ['066570.KS', '017670.KS', '035420.KS']  # LG전자, SK텔레콤, 네이버
+start_date = '2020-01-01'
+end_date = datetime.now().strftime('%Y-%m-%d')
+
+data = yf.download(stocks, start=start_date, end=end_date)['Adj Close']
+
+# 수익률 계산
+returns = data.pct_change()
+
+# 연간 수익률 및 변동성 계산
+annual_returns = returns.mean() * 252
+annual_volatility = returns.std() * (252 ** 0.5)
+
+# 샤프 비율 계산 (무위험 이자율을 1.5%로 가정)
+risk_free_rate = 0.015
+sharpe_ratio = (annual_returns - risk_free_rate) / annual_volatility
+
+# 결과 출력
+print("연간 수익률:")
+print(annual_returns)
+print("\n연간 변동성:")
+print(annual_volatility)
+print("\n샤프 비율:")
+print(sharpe_ratio)
+
+# 수익률 그래프 그리기
+(data / data.iloc[0] * 100).plot(figsize=(12, 6))
+plt.title('주가 변동 (2020년 1월 ~ 현재)')
+plt.xlabel('날짜')
+plt.ylabel('가격 (시작일 대비 %)')
+plt.legend(data.columns)
+plt.show()
