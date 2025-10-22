@@ -16,7 +16,7 @@ const apiServiceMap: { [key: string]: string } = {
  * @param query The query string from the ApiStrategy.
  * @returns A URLSearchParams object.
  */
-const parseKiprisQuery = (query: string): URLSearchParams => {
+export const parseKiprisQuery = (query: string): URLSearchParams => {
   const params = new URLSearchParams();
   // The Gemini prompt uses ' AND ' as a separator for different search criteria.
   // This regex splits by ' AND ' only if it is followed by what looks like a new parameter key (e.g., word=).
@@ -32,6 +32,16 @@ const parseKiprisQuery = (query: string): URLSearchParams => {
     }
   });
   return params;
+};
+
+const getFirstElement = (node: Document | Element, tagName: string): Element | null => {
+  const elements = node.getElementsByTagName(tagName);
+  return elements.length > 0 ? (elements.item(0) as Element) : null;
+};
+
+const getElementText = (node: Document | Element, tagName: string): string => {
+  const element = getFirstElement(node, tagName);
+  return element?.textContent?.trim() ?? '';
 };
 
 // Function to fetch data from KIPRIS API
@@ -60,10 +70,10 @@ export const fetchKiprisData = async (api: string, query: string): Promise<Kipri
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
 
-    const errorNode = xmlDoc.querySelector('error');
-    if (errorNode) {
-      const errorCode = errorNode.querySelector('errorCode')?.textContent;
-      const errorMessage = errorNode.querySelector('errorMessage')?.textContent;
+    const errorElement = getFirstElement(xmlDoc, 'error');
+    if (errorElement) {
+      const errorCode = getElementText(errorElement, 'errorCode');
+      const errorMessage = getElementText(errorElement, 'errorMessage');
       throw new Error(`KIPRIS API Error: [${errorCode}] ${errorMessage}`);
     }
 
@@ -71,23 +81,14 @@ export const fetchKiprisData = async (api: string, query: string): Promise<Kipri
       throw new Error(`KIPRIS API request failed with status ${response.status}. The proxy might be down or there could be an issue with the API server.`);
     }
 
-    const items = xmlDoc.querySelectorAll('item');
-    const results: KiprisSearchResult[] = [];
-
-    items.forEach(item => {
-      const getTagContent = (tagName: string) => item.querySelector(tagName)?.textContent || '';
-
-      const searchResult: KiprisSearchResult = {
-        company: getTagContent('applicantName'),
-        patentTitle: getTagContent('inventionTitle'),
-        applicationNumber: getTagContent('applicationNumber'),
-        date: getTagContent('applicationDate'),
-      };
-
-      if (searchResult.patentTitle && searchResult.applicationNumber) {
-        results.push(searchResult);
-      }
-    });
+    const results: KiprisSearchResult[] = Array.from(xmlDoc.getElementsByTagName('item'))
+      .map(item => ({
+        company: getElementText(item, 'applicantName'),
+        patentTitle: getElementText(item, 'inventionTitle'),
+        applicationNumber: getElementText(item, 'applicationNumber'),
+        date: getElementText(item, 'applicationDate'),
+      }))
+      .filter(result => result.patentTitle && result.applicationNumber);
 
     return results;
   } catch (error) {
